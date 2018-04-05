@@ -6,4 +6,5 @@
 - Bazelは試して見てもいいけど後
 - Premakeについて
     - tutorial .. https://github.com/premake/premake-core/wiki
-    - https://qiita.com/ousttrue/items/6d837d6daba47b51bd8e
+    - tutorialを読んだ. だいたい分かる
+
