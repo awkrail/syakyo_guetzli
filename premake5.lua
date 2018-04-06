@@ -33,7 +33,7 @@ workspace "guetzli"
     removefiles "guetzli/guetzli.cc"
     filter "action:gmake"
       linkoptions { "`pkg-config --static --libs libpng || libpng-config --static --ldflags`" }
-      buildoptions { "`pkg-config --static -cflags libpng || libpng-config --static --cflags`"}
+      buildoptions { "`pkg-config --static --cflags libpng || libpng-config --static --cflags`"}
   
   project "guetzli"
       kind "ConsoleApp"
