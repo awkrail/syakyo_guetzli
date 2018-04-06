@@ -1,8 +1,10 @@
+#include <iostream>
+
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <exception> // std::set_terminate
-#include <memory>
+#include <memory> // smart pointer
 #include <string>
 #include <sstream>
 #include <string.h>
@@ -38,6 +40,42 @@ namespace {
         "                 the limit. Default limit is %d MB.\n"
         "  --nomemlimit - Do not limit memory usage.\n", kDefaultJPEGQuality, kDefaultMemlimitMB);
     exit(1);
+  }
+
+  std::string ReadFileOrDie(const char* filename) {
+    bool read_from_stdin = strncmp(filename, "-", 2) == 0;
+    FILE* f = read_from_stdin ? stdin : fopen(filename, "rb");
+    if(!f) {
+      perror("Can't open input file");
+      exit(1);
+    }
+
+    std::string result;
+    off_t buffer_size = 8192;
+
+    if(fseek(f, 0, SEEK_END) == 0) {
+      buffer_size = std::max<off_t>(ftell(f), 1); // get buffersize
+      if(fseek(f, 0, SEEK_SET) != 0) {
+        perror("fseek");
+        exit(1);
+      }
+    } else if (ferror(f)) {
+      perror("fseek");
+      exit(1);
+    }
+
+    std::unique_ptr<char []> buf(new char[buffer_size]);
+    while(!feof(f)) {
+      size_t read_bytes = fread(buf.get(), sizeof(char), buffer_size, f);
+      if(ferror(f)) {
+        perror("fread");
+        exit(1);
+      }
+      result.append(buf.get(), read_bytes);
+    }
+
+    fclose(f);
+    return result;
   }
 }
 
@@ -77,4 +115,7 @@ int main(int argc, char** argv) {
   if(argc - opt_idx != 2) {
     Usage();
   }
+
+  std::string in_data = ReadFileOrDie(argv[opt_idx]);
+  std::string out_data;
 }
