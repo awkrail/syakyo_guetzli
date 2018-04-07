@@ -9,11 +9,11 @@
 #include <sstream>
 #include <string.h>
 #include "png.h"
+#include "guetzli/processor.h"
+#include "guetzli/quality.h"
+// #include "guetzli/stats.h"
 // #include "guetzli/jpeg_data.h"
 // #include "guetzli/jpeg_data_reader.h"
-// #include "guetzli/processor.h"
-// #include "guetzli/quality.h"
-// #include "guetzli/stats.h"
 
 namespace {
 
@@ -118,4 +118,9 @@ int main(int argc, char** argv) {
 
   std::string in_data = ReadFileOrDie(argv[opt_idx]);
   std::string out_data;
+
+  guetzli::Params params;
+  float q = guetzli::ButteraugliScoreForQuality(quality);
+  std::cout << q << std::endl;
+  //params.butteraugli_target = static_cast<float>(guetzli::ButteraugliScoreForQuality(quality));
 }

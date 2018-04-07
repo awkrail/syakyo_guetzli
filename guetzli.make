@@ -82,6 +82,8 @@ endif
 
 OBJECTS := \
 	$(OBJDIR)/guetzli.o \
+	$(OBJDIR)/processor.o \
+	$(OBJDIR)/quality.o \
 	$(OBJDIR)/butteraugli.o \
 
 RESOURCES := \
@@ -135,6 +137,22 @@ endif
 endif
 
 $(OBJDIR)/guetzli.o: guetzli/guetzli.cc
+	@echo $(notdir $<)
+ifeq (posix,$(SHELLTYPE))
+	$(SILENT) mkdir -p $(OBJDIR)
+else
+	$(SILENT) mkdir $(subst /,\\,$(OBJDIR))
+endif
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/processor.o: guetzli/processor.cc
+	@echo $(notdir $<)
+ifeq (posix,$(SHELLTYPE))
+	$(SILENT) mkdir -p $(OBJDIR)
+else
+	$(SILENT) mkdir $(subst /,\\,$(OBJDIR))
+endif
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/quality.o: guetzli/quality.cc
 	@echo $(notdir $<)
 ifeq (posix,$(SHELLTYPE))
 	$(SILENT) mkdir -p $(OBJDIR)
