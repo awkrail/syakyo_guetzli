@@ -1,4 +1,4 @@
-#include <iostream>
+#include <iostream> // debug
 
 #include <algorithm>
 #include <cstdio>
@@ -11,15 +11,128 @@
 #include "png.h"
 #include "guetzli/processor.h"
 #include "guetzli/quality.h"
-// #include "guetzli/stats.h"
+#include "guetzli/stats.h"
 // #include "guetzli/jpeg_data.h"
 // #include "guetzli/jpeg_data_reader.h"
 
 namespace {
 
   constexpr int kDefaultJPEGQuality = 95;
+
+  constexpr int kBytesPerPixel = 350;
   constexpr int kLowestMemusageMB = 100; // in MB
   constexpr int kDefaultMemlimitMB = 6000; // in MB
+
+  inline uint8_t BlendOnBlack(const uint8_t val, const uint8_t alpha) {
+    return (static_cast<int>(val) * static_cast<int>(alpha) + 128) / 255;
+  }
+
+  // PNGデータ => RGB
+  bool ReadPNG(const std::string& data, int* xsize, int* ysize,
+               std::vector<uint8_t>* rgb) {
+    png_structp png_ptr =
+        png_create_read_struct(PNG_LIBPNG_VER_STRING, nullptr, nullptr, nullptr);
+    if(!png_ptr) {
+      return false;
+    }
+
+    png_infop info_ptr = png_create_info_struct(png_ptr);
+    if(!info_ptr) {
+      png_destroy_read_struct(&png_ptr, nullptr, nullptr);
+      return false;
+    }
+
+    if(setjmp(png_jmpbuf(png_ptr)) != 0) {
+      png_destroy_read_struct(&png_ptr, &info_ptr, nullptr);
+      return false;
+    }
+
+    // よくわからない => データの読み込みらしいけど..
+    std::istringstream memstream(data, std::ios::in | std::ios::binary);
+    png_set_read_fn(png_ptr, static_cast<void*>(&memstream), [](png_structp png_ptr, png_bytep outBytes, png_size_t byteCountToRead) {
+      std::istringstream& memstream = *static_cast<std::istringstream*>(png_get_io_ptr(png_ptr));
+      memstream.read(reinterpret_cast<char*>(outBytes), byteCountToRead);
+
+      if(memstream.eof()) png_error(png_ptr, "unexpected end of data");
+      if(memstream.fail()) png_error(png_ptr, "read from memory error");
+    });
+
+    const unsigned int png_transforms =
+        PNG_TRANSFORM_PACKING | PNG_TRANSFORM_EXPAND | PNG_TRANSFORM_STRIP_16;
+    
+    // pngの読み込み
+    png_read_png(png_ptr, info_ptr, png_transforms, nullptr);
+    png_bytep* row_pointers = png_get_rows(png_ptr, info_ptr);
+
+    *xsize = png_get_image_width(png_ptr, info_ptr);
+    *ysize = png_get_image_height(png_ptr, info_ptr);
+    rgb->resize(3 * (*xsize) * (*ysize));
+
+    const int components = png_get_channels(png_ptr, info_ptr);
+    switch(components) {
+      case 1: {
+        // GRAYSCALE
+        for(int y=0; y < *ysize; ++y) {
+          const uint8_t* row_in = row_pointers[y];
+          uint8_t* row_out = &(*rgb)[3 * y * (*xsize)];
+          for(int x = 0; x < *xsize; ++x) {
+            const uint8_t gray = row_in[x];
+            row_out[3 * x + 0] = gray;
+            row_out[3 * x + 1] = gray;
+            row_out[3 * x + 2] = gray;
+          }
+        }
+        break;
+      }
+
+      case 2: {
+        // GRAYSCALE + ALPHA
+        for(int y=0; y < *ysize; ++y) {
+          const uint8_t* row_in = row_pointers[y];
+          uint8_t* row_out = &(*rgb)[3 * y * (*xsize)];
+          for(int x = 0; x < *xsize; ++x) {
+            const uint8_t gray = BlendOnBlack(row_in[2*x], row_in[2*x + 1]);
+            row_out[3*x + 0] = gray;
+            row_out[3*x + 1] = gray;
+            row_out[3*x + 2] = gray;
+          }
+        }
+        break;
+      }
+
+      case 3: {
+        // RGB
+        for(int y=0; y < *ysize; ++y) {
+          const uint8_t* row_in = row_pointers[y];
+          uint8_t* row_out = &(*rgb)[3 * y * (*xsize)];
+          memcpy(row_out, row_in, 3 * (*xsize));
+        }
+        break;
+      }
+
+      case 4: {
+        // RGBA
+        for(int y = 0; y < *xsize; ++y) {
+          const uint8_t* row_in = row_pointers[y];
+          uint8_t* row_out = &(*rgb)[3 * y * (*xsize)];
+          for(int x = 0; x< *xsize; ++x) {
+            const uint8_t alpha = row_in[4 * x + 3];
+            row_out[3*x + 0] = BlendOnBlack(row_in[4*x + 0], alpha);
+            row_out[3*x + 1] = BlendOnBlack(row_in[4*x + 1], alpha);
+            row_out[3*x + 2] = BlendOnBlack(row_in[4*x + 2], alpha);
+          }
+        }
+        break;
+      }
+      
+      default:
+        png_destroy_read_struct(&png_ptr, &info_ptr, nullptr);
+        return false;
+    }
+
+    png_destroy_read_struct(&png_ptr, &info_ptr, nullptr);
+    return true;
+  }
 
   void TerminateHandler() {
     fprintf(stderr, "Unhandled exception. Most likely insufficient memory available.\n"
@@ -120,7 +233,57 @@ int main(int argc, char** argv) {
   std::string out_data;
 
   guetzli::Params params;
-  float q = guetzli::ButteraugliScoreForQuality(quality);
-  std::cout << q << std::endl;
-  //params.butteraugli_target = static_cast<float>(guetzli::ButteraugliScoreForQuality(quality));
+  params.butteraugli_target = static_cast<float>(
+                guetzli::ButteraugliScoreForQuality(quality));
+
+  guetzli::ProcessStats stats;
+
+  if(verbose) {
+    stats.debug_output_file = stderr;
+  }
+
+  static const unsigned char kPNGMagicBytes[] = {
+    0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n',
+  };
+
+  // headerを見てPNGかどうかの判定をする
+  if(in_data.size() >= 8 &&
+    memcmp(in_data.data(), kPNGMagicBytes, sizeof(kPNGMagicBytes)) == 0) {
+      int xsize, ysize;
+      std::vector<uint8_t> rgb;
+      if(!ReadPNG(in_data, &xsize, &ysize, &rgb)) {
+        fprintf(stderr, "Error reading PNG data from input file\n");
+        return 1;
+      }
+      double pixels = static_cast<double>(xsize) * ysize;
+      if(memlimit_mb != -1
+        && (pixels * kBytesPerPixel / (1 << 20) > memlimit_mb 
+            || memlimit_mb < kLowestMemusageMB)) {
+        // 使用できるメモリの量が圧倒的に少ないか, 入力の画像が圧倒的に大きいか
+        fprintf(stderr, "Memory limit would be exceeded. Failing. \n");
+        return 1;
+      }
+      if(!guetzli::Process(params, &stats, rgb, xsize, ysize, &out_data)) {
+        fprintf(stderr, "Guetzli processing failed");
+        return 1;
+      }
+    } else {
+      guetzli::JPEGData jpg_header;
+      if(!guetzli::ReadJpeg(in_data, guetzli::JPEG_READ_HEADER, &jpg_header)) {
+        fprintf(stderr, "Error reading JPG data from input data\n");
+        return 1;
+      }
+      double pixels = static_cast<double>(jpg_header.width) * jpg_header.height;
+      if(memlimit_mb != -1
+        && (pixels * kBytesPerPixel / (1 << 20) > memlimit_mb
+            || memlimit_mb < kLowestMemusageMB)) {
+        fprintf(stderr, "Memory limit would be exceeded. Failing\n");
+        return 1;
+      }
+      // jpegのRGBはguetzli::Processで読み込む
+      if(!guetzli::Process(params, &stats, in_data, &out_data)) {
+        fprintf(stderr, "Guetzli processing failed");
+        return 1;
+      }
+    }
 }
