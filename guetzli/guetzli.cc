@@ -12,8 +12,8 @@
 #include "guetzli/processor.h"
 #include "guetzli/quality.h"
 #include "guetzli/stats.h"
-// #include "guetzli/jpeg_data.h"
-// #include "guetzli/jpeg_data_reader.h"
+#include "guetzli/jpeg_data.h"
+#include "guetzli/jpeg_data_reader.h"
 
 namespace {
 

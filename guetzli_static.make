@@ -81,6 +81,7 @@ all: prebuild prelink $(TARGET)
 endif
 
 OBJECTS := \
+	$(OBJDIR)/jpeg_data_reader.o \
 	$(OBJDIR)/processor.o \
 	$(OBJDIR)/quality.o \
 	$(OBJDIR)/butteraugli.o \
@@ -135,6 +136,14 @@ endif
 	$(SILENT) $(CXX) -x c++-header $(ALL_CXXFLAGS) -o "$@" -MF "$(@:%.gch=%.d)" -c "$<"
 endif
 
+$(OBJDIR)/jpeg_data_reader.o: guetzli/jpeg_data_reader.cc
+	@echo $(notdir $<)
+ifeq (posix,$(SHELLTYPE))
+	$(SILENT) mkdir -p $(OBJDIR)
+else
+	$(SILENT) mkdir $(subst /,\\,$(OBJDIR))
+endif
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
 $(OBJDIR)/processor.o: guetzli/processor.cc
 	@echo $(notdir $<)
 ifeq (posix,$(SHELLTYPE))

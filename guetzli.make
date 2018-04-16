@@ -82,6 +82,7 @@ endif
 
 OBJECTS := \
 	$(OBJDIR)/guetzli.o \
+	$(OBJDIR)/jpeg_data_reader.o \
 	$(OBJDIR)/processor.o \
 	$(OBJDIR)/quality.o \
 	$(OBJDIR)/butteraugli.o \
@@ -137,6 +138,14 @@ endif
 endif
 
 $(OBJDIR)/guetzli.o: guetzli/guetzli.cc
+	@echo $(notdir $<)
+ifeq (posix,$(SHELLTYPE))
+	$(SILENT) mkdir -p $(OBJDIR)
+else
+	$(SILENT) mkdir $(subst /,\\,$(OBJDIR))
+endif
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/jpeg_data_reader.o: guetzli/jpeg_data_reader.cc
 	@echo $(notdir $<)
 ifeq (posix,$(SHELLTYPE))
 	$(SILENT) mkdir -p $(OBJDIR)
