@@ -151,27 +151,81 @@ bool ProcessDHT(const uint8_t* data, const size_t len,
 
 bool ProcessDQT(const uint8_t* data, const size_t len, size_t* pos,
                 JPEGData* jpg) {
-  // 未実装
-  return true;
+  const size_t start_pos = *pos;
+  VERIFY_LEN(2);
+  size_t marker_len = ReadUint16(data, pos);
+  if(marker_len == 2) {
+    fprintf(stderr, "DQT marker: no quantization table found\n");
+    jpg->error = JPEG_EMPTY_DQT;
   }
+  while(*pos < start_pos + marker_len && jpg->quant.size() < kMaxQuantTables) {
+    VERIFY_LEN(1);
+    int quant_table_index = ReadUint8(data, pos);
+    int quant_table_precision = quant_table_index >> 4;
+    quant_table_index &= 0xf;
+    // のちに精度 * 量子化テーブルのサイズぶんが入る
+    VERIFY_INPUT(quant_table_index, 0, 3, QUANT_TBL_INDEX);
+    VERIFY_LEN((quant_table_precision ? 2 : 1) * kDCTBlockSize);
+    JPEGQuantTable table;
+    table.index = quant_table_index;
+    table.precision = quant_table_precision;
+    for(int i=0; i < kDCTBlockSize; ++i) {
+      int quant_val = quant_table_precision ? ReadUint16(data, pos) : ReadUint8(data, pos);
+      VERIFY_INPUT(quant_val, 1, 65535, QUANT_VAL);
+      table.values[kJPEGNaturalOrder[i]] = quant_val; // igZag->Parseして元に戻す
+    }
+    table.is_last = (*pos == start_pos + marker_len);
+    jpg->quant.push_back(table);
+  }
+  VERIFY_MARKER_END();
+  return true;
+}
 
+// Restart interval
 bool ProcessDRI(const uint8_t* data, const size_t len, size_t* pos,
                 JPEGData* jpg) {
-  // 未実装
-  return true;              
+  if(jpg->restart_interval > 0) {
+    fprintf(stderr, "Duplicate DRI marker.\n");
+    jpg->error = JPEG_DUPLICATE_DRI;
+    return false;
   }
+  const size_t start_pos = *pos;
+  VERIFY_LEN(4);
+  size_t marker_len = ReadUint16(data, pos);
+  int restart_interval = ReadUint16(data, pos);
+  jpg->restart_interval = restart_interval;
+  return true;             
+}
 
+// Save APP marker, and not recognize other information about APP.
 bool ProcessAPP(const uint8_t* data, const size_t len, size_t* pos,
                 JPEGData* jpg) {
-  // 未実装
-  return true;              
-  }
+  VERIFY_LEN(2);
+  size_t marker_len = ReadUint16(data, pos);
+  VERIFY_INPUT(marker_len, 2, 65535, MARKER_LEN);
+  VERIFY_LEN(marker_len - 2);
 
+  // Save the marker type together with the app data.
+  std::string app_str(reinterpret_cast<const char*>(
+      &data[*pos - 3]), marker_len + 1);
+  *pos += marker_len - 2;
+  jpg->app_data.push_back(app_str);
+  return true;              
+}
+
+// Save COM marker as a string
 bool ProcessCOM(const uint8_t* data, const size_t len, size_t* pos,
                 JPEGData* jpg) {
-  // 未実装
+  VERIFY_LEN(2);
+  size_t marker_len = ReadUint16(data, pos);
+  VERIFY_INPUT(marker_len, 2, 65535, MARKER_LEN);
+  VERIFY_LEN(marker_len - 2);
+  std::string com_str(reinterpret_cast<const char*>(
+      &data[*pos - 2]), marker_len);
+  *pos += marker_len - 2;
+  jpg->com_data.push_back(com_str);
   return true;              
-  }
+}
 
 bool ProcessScan(const uint8_t* data, const size_t len,
                  const std::vector<HuffmanTableEntry>& dc_huff_lut,
@@ -227,6 +281,7 @@ bool ReadJpeg(const uint8_t* data, const size_t len, JpegReadMode mode,
   }
 
   // Huffman絡みのデータについてよく分からない
+  // DHT定義 : ProcessDHTで利用する
   int lut_size = kMaxHuffmanTables * kJpegHuffmanLutSize;
   std::vector<HuffmanTableEntry> dc_huff_lut(lut_size);
   std::vector<HuffmanTableEntry> ac_huff_lut(lut_size);
@@ -239,7 +294,7 @@ bool ReadJpeg(const uint8_t* data, const size_t len, JpegReadMode mode,
     // Read Next Marker
     size_t num_skipped = FindNextMarker(data, len, pos);
     if(num_skipped > 0) {
-      jpg->marker_order.push_back(0xff); // ..?
+      jpg->marker_order.push_back(0xff);
       jpg->inter_marker_data.push_back(
         std::string(reinterpret_cast<const char*>(&data[pos]),
                                     num_skipped));
