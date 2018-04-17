@@ -139,13 +139,32 @@ bool ProcessSOF(const uint8_t* data, const size_t len,
   return true;
 }
 
+bool ProcessSOS(const uint8_t* data, const size_t len, size_t* pos,
+                JPEGData* jpg) {}
+
+// DHT定義
+// http://d.hatena.ne.jp/kuriken12/20100116/1263624765
+/**
+ * 0xFF 0xDE
+ * Lh .. マーカーの長さ
+ * Tc .. DC成分かAC成分か
+ * Th ~ 最後まで : 繰り返し
+ * Th => id(多くの場合はYについてAC, DCを持ち CbCrでAC, DCを一つ持つ => 合計4つ)
+**/
 bool ProcessDHT(const uint8_t* data, const size_t len,
                 JpegReadMode mode,
                 std::vector<HuffmanTableEntry>* dc_huff_lut,
                 std::vector<HuffmanTableEntry>* ac_huff_lut,
                 size_t* pos,
                 JPEGData* jpg) {
-  // 未実装
+  const size_t start_pos = *pos;
+  VERIFY_LEN(2);
+  size_t marker_len = ReadUint16(data, pos);
+  if(marker_len == 2) {
+    fprintf(stderr, "DHT marker: no Huffman table found");
+    jpg->error = JPEG_EMPTY_DHT;
+  }
+  // 日曜日に読み直し
   return true;
 }
 
@@ -163,7 +182,6 @@ bool ProcessDQT(const uint8_t* data, const size_t len, size_t* pos,
     int quant_table_index = ReadUint8(data, pos);
     int quant_table_precision = quant_table_index >> 4;
     quant_table_index &= 0xf;
-    // のちに精度 * 量子化テーブルのサイズぶんが入る
     VERIFY_INPUT(quant_table_index, 0, 3, QUANT_TBL_INDEX);
     VERIFY_LEN((quant_table_precision ? 2 : 1) * kDCTBlockSize);
     JPEGQuantTable table;
