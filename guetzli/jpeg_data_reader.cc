@@ -139,6 +139,57 @@ bool ProcessSOF(const uint8_t* data, const size_t len,
   return true;
 }
 
+bool ProcessDHT(const uint8_t* data, const size_t len,
+                JpegReadMode mode,
+                std::vector<HuffmanTableEntry>* dc_huff_lut,
+                std::vector<HuffmanTableEntry>* ac_huff_lut,
+                size_t* pos,
+                JPEGData* jpg) {
+  // 未実装
+  return true;
+}
+
+bool ProcessDQT(const uint8_t* data, const size_t len, size_t* pos,
+                JPEGData* jpg) {
+  // 未実装
+  return true;
+  }
+
+bool ProcessDRI(const uint8_t* data, const size_t len, size_t* pos,
+                JPEGData* jpg) {
+  // 未実装
+  return true;              
+  }
+
+bool ProcessAPP(const uint8_t* data, const size_t len, size_t* pos,
+                JPEGData* jpg) {
+  // 未実装
+  return true;              
+  }
+
+bool ProcessCOM(const uint8_t* data, const size_t len, size_t* pos,
+                JPEGData* jpg) {
+  // 未実装
+  return true;              
+  }
+
+bool ProcessScan(const uint8_t* data, const size_t len,
+                 const std::vector<HuffmanTableEntry>& dc_huff_lut,
+                 const std::vector<HuffmanTableEntry>& ac_huff_lut,
+                 uint16_t scan_progression[kMaxComponents][kDCTBlockSize],
+                 bool is_progressive,
+                 size_t* pos,
+                 JPEGData* jpg) {
+  // 未実装
+  return true;
+  }
+
+bool FixupIndexes(JPEGData* jpg) {
+  // 未実装
+  return true;
+}
+
+
 size_t FindNextMarker(const uint8_t* data, const size_t len, size_t pos) {
   static const uint8_t kIsValidMarker[] = {
     1, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -162,6 +213,7 @@ size_t FindNextMarker(const uint8_t* data, const size_t len, size_t pos) {
  *  https://www.setsuki.com/hsp/ext/jpg.htm
  *  https://hp.vector.co.jp/authors/VA032610/contents.htm
  **/
+
 bool ReadJpeg(const uint8_t* data, const size_t len, JpegReadMode mode,
               JPEGData* jpg) {
   size_t pos = 0;
